@@ -1,1 +1,74 @@
+#include <GNSS.h>
+#include <math.h>
+
+GNSSClass gnss;
+
+const double R = 6371000.0;  // 地球の半径 [m]
+
+// 🎯 目標座標（例：正門）
+const double lat_target = 35.568105;
+const double lon_target = 139.401225;
+
+const int LED_PIN = LED0;   // 内蔵LED0を使用
+
+// 度 → ラジアン
+double deg2rad(double deg) { return deg * M_PI / 180.0; }
+
+// 距離計算（ハバーサイン公式）
+double haversine(double lat1, double lon1, double lat2, double lon2) {
+  double dLat = deg2rad(lat2 - lat1);
+  double dLon = deg2rad(lon2 - lon1);
+  double a = pow(sin(dLat/2), 2) +
+             cos(deg2rad(lat1)) * cos(deg2rad(lat2)) *
+             pow(sin(dLon/2), 2);
+  double c = 2 * atan2(sqrt(a), sqrt(1-a));
+  return R * c; // m
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {;}
+
+  if (gnss.begin() < 0) {
+    Serial.println("GNSS init failed!");
+    while (1);
+  }
+
+  gnss.start();
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  Serial.println("Waiting for GPS fix...");
+}
+
+void loop() {
+  if (gnss.waitUpdate(-1)) {
+    double lat = gnss.latitude();
+    double lon = gnss.longitude();
+
+    Serial.print("Current Position: ");
+    Serial.print(lat, 6);
+    Serial.print(", ");
+    Serial.println(lon, 6);
+
+    // 目標地点との距離
+    double dist = haversine(lat, lon, lat_target, lon_target);
+
+    Serial.print("Distance to target: ");
+    Serial.print(dist);
+    Serial.println(" m");
+
+    if (dist <= 3.0) {
+      // 3m以内なら点滅
+      digitalWrite(LED_PIN, HIGH);
+      delay(200);
+      digitalWrite(LED_PIN, LOW);
+      delay(200);
+    } else {
+      // 3m以上なら消灯して1秒ごとに更新
+      digitalWrite(LED_PIN, LOW);
+      delay(1000);
+    }
+  }
+}
 
